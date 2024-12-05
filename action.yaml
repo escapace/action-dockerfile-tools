@@ -1,0 +1,169 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+# https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions
+---
+name: dockerfile-tools
+description: command line application designed to assist with analyzing and extracting information from Dockerfiles
+author: escapace
+branding:
+  icon: check-circle
+  color: gray-dark
+
+inputs:
+  version:
+    description: dockerfile-tools semver version
+    required: false
+    default: latest
+  cache:
+    description: cache tool
+    required: false
+    default: ${{ true }}
+  github-token:
+    description: github token
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: set environment
+      uses: actions/github-script@v7
+      id: environment
+      with:
+        github-token: ${{ inputs.github-token || env.GITHUB_TOKEN }}
+        script: |
+          const path = require('path')
+          // input envs
+          const { INPUT_TOOL_NAME, INPUT_TOOL_SEMVER, INPUT_REPO_OWNER, INPUT_REPO_NAME, RUNNER_TEMP } = process.env
+
+          // define tool platform and arch
+          const processPlatform = process.platform // https://nodejs.org/api/process.html#processplatform
+          const processArch = process.arch // https://nodejs.org/api/process.html#processarch
+
+          let toolOs = ''
+          let toolArch = ''
+          let toolExt = ''
+          let toolExecutable = `${INPUT_TOOL_NAME}`
+
+          switch (processPlatform) {
+            case 'darwin':
+              toolOs = 'darwin'
+              toolExt = 'tar.gz'
+              break;
+            case 'linux':
+              toolOs = 'linux'
+              toolExt = 'tar.gz'
+              break;
+            default:
+              core.setFailed(`[${INPUT_TOOL_NAME}] Unsupported platform: ${processPlatform}`)
+              process.exit(core.ExitCode.Failure)
+          }
+
+          switch (processArch) {
+            case 'x64':
+              toolArch = 'amd64'
+              break;
+            case 'arm64':
+              toolArch = 'arm64'
+              break;
+            default:
+              core.setFailed(`[${INPUT_TOOL_NAME}] Unsupported architecture: ${processArch}`)
+              process.exit(core.ExitCode.Failure)
+          }
+
+          // helpers
+          async function getToolReleaseLatest() {
+            const response = await github.rest.repos.getLatestRelease({
+              owner: INPUT_REPO_OWNER,
+              repo: INPUT_REPO_NAME
+            })
+            return response.data
+          }
+
+          async function getToolReleaseByTag(versionTag) {
+            const response = await github.rest.repos.getReleaseByTag({
+              owner: INPUT_REPO_OWNER,
+              repo: INPUT_REPO_NAME,
+              tag: versionTag
+            })
+            return response.data
+          }
+
+          // get tool release data
+          const release =
+            INPUT_TOOL_SEMVER === 'latest' || INPUT_TOOL_SEMVER === '' || INPUT_TOOL_SEMVER === undefined || INPUT_TOOL_SEMVER === null
+              ? await getToolReleaseLatest()
+              : await getToolReleaseByTag(`v${INPUT_TOOL_SEMVER}`)
+
+          const versionTag = release.tag_name
+          const versionSemVer = versionTag.replace(/^v/, '')
+          const toolDirPath = core.toPlatformPath(path.join(process.env.HOME, '.local', INPUT_TOOL_NAME))
+          const toolDownloadUrl = release.assets.find(asset => asset.name === `${INPUT_TOOL_NAME}_${versionSemVer}_${toolOs}_${toolArch}.${toolExt}`).browser_download_url.trim()
+
+          // set outputs
+          core.setOutput('tool-name', INPUT_TOOL_NAME)
+          core.setOutput('tool-version-semver', versionSemVer)
+          core.setOutput('tool-version-tag', versionTag)
+          core.setOutput('tool-dir-path', toolDirPath)
+          core.setOutput('tool-download-url', toolDownloadUrl)
+          core.setOutput('tool-executable', toolExecutable)
+          core.setOutput('tool-executable-path', core.toPlatformPath(`${toolDirPath}/${toolExecutable}`))
+      env:
+        INPUT_TOOL_NAME: "dockerfile-tools"
+        INPUT_REPO_OWNER: "escapace"
+        INPUT_REPO_NAME: "dockerfile-tools"
+        INPUT_TOOL_SEMVER: ${{ inputs.version }}
+
+    - name: set cache
+      if: ${{ inputs.cache == 'true' }}
+      id: tool-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.environment.outputs.tool-dir-path }}
+        key: ${{ format('{0}-{1}-{2}-{3}', steps.environment.outputs.tool-name, steps.environment.outputs.tool-version-semver, runner.os, runner.arch) }}
+
+    - name: install dependencies
+      if: ${{ steps.tool-cache.outputs.cache-hit != 'true' }}
+      run: npm install @actions/tool-cache
+      shell: bash
+      working-directory: ${{ env.RUNNER_TEMP }}
+
+    - name: download tool
+      uses: actions/github-script@v7
+      if: ${{ steps.tool-cache.outputs.cache-hit != 'true' }}
+      with:
+        github-token: ${{ inputs.github-token || inputs.token || env.GITHUB_TOKEN }}
+        script: |
+          // dependencies
+          const tc = require('@actions/tool-cache')
+
+          // input envs
+          const { INPUT_TOOL_NAME, INPUT_TOOL_DIR_PATH, INPUT_TOOL_DOWNLOAD_URL } = process.env
+
+          // download tool
+          await io.mkdirP(INPUT_TOOL_DIR_PATH)
+          const toolTempPath = await tc.downloadTool(INPUT_TOOL_DOWNLOAD_URL)
+
+          // extract tool
+          if (INPUT_TOOL_DOWNLOAD_URL.endsWith('.zip')) {
+            await tc.extractZip(toolTempPath, INPUT_TOOL_DIR_PATH)
+          } else if (INPUT_TOOL_DOWNLOAD_URL.endsWith('.tar.gz')) {
+            await tc.extractTar(toolTempPath, INPUT_TOOL_DIR_PATH)
+          } else {
+            core.setFailed(`[${INPUT_TOOL_NAME}] Unsupported format`)
+            process.exit(core.ExitCode.Failure)
+          }
+      env:
+        INPUT_TOOL_NAME: ${{ steps.environment.outputs.tool-name }}
+        INPUT_TOOL_DIR_PATH: ${{ steps.environment.outputs.tool-dir-path }}
+        INPUT_TOOL_DOWNLOAD_URL: ${{ steps.environment.outputs.tool-download-url }}
+
+    - name: download tool
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token || inputs.token || env.GITHUB_TOKEN }}
+        script: |
+          const { INPUT_TOOL_DIR_PATH } = process.env
+
+          core.addPath(INPUT_TOOL_DIR_PATH)
+      env:
+        INPUT_TOOL_DIR_PATH: ${{ steps.environment.outputs.tool-dir-path }}
