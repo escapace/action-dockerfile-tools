@@ -26,12 +26,12 @@ runs:
   using: composite
   steps:
     - name: set environment
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       id: environment
       with:
         github-token: ${{ inputs.github-token || env.GITHUB_TOKEN }}
         script: |
-          const path = require('path')
+          const path = await import('path')
           // input envs
           const { INPUT_TOOL_NAME, INPUT_TOOL_SEMVER, INPUT_REPO_OWNER, INPUT_REPO_NAME, RUNNER_TEMP } = process.env
 
@@ -116,25 +116,24 @@ runs:
     - name: set cache
       if: ${{ inputs.cache == 'true' }}
       id: tool-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ${{ steps.environment.outputs.tool-dir-path }}
         key: ${{ format('{0}-{1}-{2}-{3}', steps.environment.outputs.tool-name, steps.environment.outputs.tool-version-semver, runner.os, runner.arch) }}
 
     - name: install dependencies
       if: ${{ steps.tool-cache.outputs.cache-hit != 'true' }}
-      run: npm install @actions/tool-cache
+      run: npm install @actions/tool-cache@4.0.0
       shell: bash
-      working-directory: ${{ env.RUNNER_TEMP }}
 
     - name: download tool
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       if: ${{ steps.tool-cache.outputs.cache-hit != 'true' }}
       with:
         github-token: ${{ inputs.github-token || inputs.token || env.GITHUB_TOKEN }}
         script: |
           // dependencies
-          const tc = require('@actions/tool-cache')
+          const tc = await import('${{ github.workspace }}/node_modules/@actions/tool-cache/lib/tool-cache.js');
 
           // input envs
           const { INPUT_TOOL_NAME, INPUT_TOOL_DIR_PATH, INPUT_TOOL_DOWNLOAD_URL } = process.env
@@ -158,7 +157,7 @@ runs:
         INPUT_TOOL_DOWNLOAD_URL: ${{ steps.environment.outputs.tool-download-url }}
 
     - name: download tool
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token || inputs.token || env.GITHUB_TOKEN }}
         script: |
