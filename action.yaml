@@ -26,7 +26,7 @@ runs:
   using: composite
   steps:
     - name: set environment
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       id: environment
       with:
         github-token: ${{ inputs.github-token || env.GITHUB_TOKEN }}
@@ -128,7 +128,7 @@ runs:
       working-directory: ${{ env.RUNNER_TEMP }}
 
     - name: download tool
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       if: ${{ steps.tool-cache.outputs.cache-hit != 'true' }}
       with:
         github-token: ${{ inputs.github-token || inputs.token || env.GITHUB_TOKEN }}
@@ -158,7 +158,7 @@ runs:
         INPUT_TOOL_DOWNLOAD_URL: ${{ steps.environment.outputs.tool-download-url }}
 
     - name: download tool
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       with:
         github-token: ${{ inputs.github-token || inputs.token || env.GITHUB_TOKEN }}
         script: |
