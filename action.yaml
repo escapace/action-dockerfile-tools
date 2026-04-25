@@ -2,7 +2,7 @@
 # https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions
 ---
 name: dockerfile-tools
-description: command line application designed to assist with analyzing and extracting information from Dockerfiles
+description: Install a command-line utility for parsing Dockerfiles into JSON syntax trees, listing named build stages, and extracting cache mounts with ARG value expansion.
 author: escapace
 branding:
   icon: check-circle
