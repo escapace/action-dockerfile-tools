@@ -6,7 +6,7 @@ parsing Dockerfiles into JSON syntax trees, listing named build stages, and extr
 with `ARG` value expansion.
 
 ```yaml
-- uses: escapace/action-dockerfile-tools@v0.2.0
+- uses: escapace/action-dockerfile-tools@v0.2.1
   with:
     version: latest
     cache: true
