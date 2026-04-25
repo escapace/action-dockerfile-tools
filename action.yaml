@@ -123,8 +123,17 @@ runs:
 
     - name: install dependencies
       if: ${{ steps.tool-cache.outputs.cache-hit != 'true' }}
-      run: npm install @actions/tool-cache@4.0.0
       shell: bash
+      env:
+        ACTION_DEPS_DIR: ${{ runner.temp }}/dockerfile-tools-action-deps
+      run: |
+        rm -rf "$ACTION_DEPS_DIR"
+        mkdir -p "$ACTION_DEPS_DIR"
+        npm install \
+          --prefix "$ACTION_DEPS_DIR" \
+          --no-save \
+          --package-lock=false \
+          @actions/tool-cache@4.0.0
 
     - name: download tool
       uses: actions/github-script@v9
@@ -133,7 +142,7 @@ runs:
         github-token: ${{ inputs.github-token || inputs.token || env.GITHUB_TOKEN }}
         script: |
           // dependencies
-          const tc = await import('${{ github.workspace }}/node_modules/@actions/tool-cache/lib/tool-cache.js');
+          const tc = await import(process.env.INPUT_TOOL_CACHE_MODULE_PATH);
 
           // input envs
           const { INPUT_TOOL_NAME, INPUT_TOOL_DIR_PATH, INPUT_TOOL_DOWNLOAD_URL } = process.env
@@ -155,6 +164,7 @@ runs:
         INPUT_TOOL_NAME: ${{ steps.environment.outputs.tool-name }}
         INPUT_TOOL_DIR_PATH: ${{ steps.environment.outputs.tool-dir-path }}
         INPUT_TOOL_DOWNLOAD_URL: ${{ steps.environment.outputs.tool-download-url }}
+        INPUT_TOOL_CACHE_MODULE_PATH: ${{ runner.temp }}/dockerfile-tools-action-deps/node_modules/@actions/tool-cache/lib/tool-cache.js
 
     - name: download tool
       uses: actions/github-script@v9
